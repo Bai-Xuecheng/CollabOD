@@ -73,7 +73,7 @@ from ultralytics.nn.modules import (
     YOLOESegment26,
     v10Detect,
 )
-from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
+from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, WINDOWS, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import (
     E2ELoss,
@@ -98,6 +98,7 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 
+from .CollabOD import DPF_Stem, DABlock, BRM, UDA_Head
 
 class BaseModel(torch.nn.Module):
     """Base class for all YOLO models in the Ultralytics family.
@@ -1444,6 +1445,12 @@ def torch_safe_load(weight, safe_only=False):
                 "ultralytics.nn.modules.block.Silence": "torch.nn.Identity",  # YOLOv9e
                 "ultralytics.nn.tasks.YOLOv10DetectionModel": "ultralytics.nn.tasks.DetectionModel",  # YOLOv10
                 "ultralytics.utils.loss.v10DetectLoss": "ultralytics.utils.loss.E2EDetectLoss",  # YOLOv10
+                # resolve cross-platform pathlib pickle incompatibility
+                **(
+                    {"pathlib.PosixPath": "pathlib.WindowsPath"}
+                    if WINDOWS
+                    else {"pathlib.WindowsPath": "pathlib.PosixPath"}
+                ),
             },
         ):
             if safe_only:
@@ -1512,7 +1519,7 @@ def load_checkpoint(weight, device=None, inplace=True, fuse=False):
 
     # Model compatibility updates
     model.args = args  # attach args to model
-    model.pt_path = weight  # attach *.pt file path to model
+    model.pt_path = str(weight)  # attach *.pt file path to model as string (avoids WindowsPath pickle issues)
     model.task = getattr(model, "task", guess_model_task(model))
     if not hasattr(model, "stride"):
         model.stride = torch.tensor([32.0])
@@ -1623,18 +1630,33 @@ def parse_model(d, ch, verbose=True):
             A2C2f,
         }
     )
+    CollabOD_modules = frozenset(
+        {
+            DPF_Stem,
+            DABlock,
+            BRM,
+            UDA_Head
+        }
+    )
+    is_backbone = False
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
-        m = (
-            getattr(torch.nn, m[3:])
-            if "nn." in m
-            else getattr(__import__("torchvision").ops, m[16:])
-            if "torchvision.ops." in m
-            else globals()[m]
-        )  # get module
+        try:
+            if m == 'node_mode':
+                m = d[m]
+                if len(args) > 0:
+                    if args[0] == 'head_channel':
+                        args[0] = int(d[args[0]])
+            t = m
+            m = getattr(torch.nn, m[3:]) if 'nn.' in m else globals()[m]  # get module
+        except:
+            pass
         for j, a in enumerate(args):
             if isinstance(a, str):
                 with contextlib.suppress(ValueError):
-                    args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
+                    try:
+                        args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
+                    except:
+                        args[j] = a
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in base_modules:
             c1, c2 = ch[f], args[0]
@@ -1660,12 +1682,20 @@ def parse_model(d, ch, verbose=True):
                 legacy = False
         elif m is AIFI:
             args = [ch[f], *args]
-        elif m in frozenset({HGStem, HGBlock}):
+        
+        elif m in frozenset({DPF_Stem, DABlock}):
             c1, cm, c2 = ch[f], args[0], args[1]
             args = [c1, cm, c2, *args[2:]]
-            if m is HGBlock:
+            if m is DABlock:
                 args.insert(4, n)  # number of repeats
                 n = 1
+        elif m is BRM:
+            c2 = args[0]
+            args = [[ch[x] for x in f], c2]
+        elif m is UDA_Head:
+            args.append([ch[x] for x in f])
+            args[1] = make_divisible(min(args[1], max_channels) * width, 8)
+
         elif m is ResNetLayer:
             c2 = args[1] if args[3] else args[1] * 4
         elif m is torch.nn.BatchNorm2d:

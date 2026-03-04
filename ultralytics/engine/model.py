@@ -1051,6 +1051,7 @@ class Model(torch.nn.Module):
             >>> trainer_class = model._smart_load("trainer")
         """
         try:
+            self.task = "detect"
             return self.task_map[self.task][key]
         except Exception as e:
             name = self.__class__.__name__
