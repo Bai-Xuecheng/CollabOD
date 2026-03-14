@@ -289,8 +289,8 @@ class BaseModel(torch.nn.Module):
         self = super()._apply(fn)
         m = self.model[-1]  # Detect()
         if isinstance(
-            m, Detect
-        ):  # includes all Detect subclasses like Segment, Pose, OBB, WorldDetect, YOLOEDetect, YOLOESegment
+            m, (Detect, UDA_Head)
+        ):  # includes custom detection heads that expose stride/anchors/strides
             m.stride = fn(m.stride)
             m.anchors = fn(m.anchors)
             m.strides = fn(m.strides)
@@ -397,15 +397,19 @@ class DetectionModel(BaseModel):
 
         # Build strides
         m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):  # includes all Detect subclasses like Segment, Pose, OBB, YOLOEDetect, YOLOESegment
+        if isinstance(m, (Detect, UDA_Head)):  # includes custom detection heads like UDA_Head
             s = 256  # 2x min stride
             m.inplace = self.inplace
 
             def _forward(x):
-                """Perform a forward pass through the model, handling different Detect subclass types accordingly."""
+                """Perform a forward pass through the model, handling custom detection heads accordingly."""
                 output = self.forward(x)
                 if self.end2end:
                     output = output["one2many"]
+                if isinstance(output, dict):
+                    return output["feats"]
+                if isinstance(output, list):
+                    return output
                 return output["feats"]
 
             self.model.eval()  # Avoid changing batch statistics until training begins
@@ -1808,6 +1812,8 @@ def guess_model_task(model):
         m = cfg["head"][-1][-2].lower()  # output module name
         if m in {"classify", "classifier", "cls", "fc"}:
             return "classify"
+        if m in {"uda_head"}:
+            return "detect"
         if "detect" in m:
             return "detect"
         if "segment" in m:

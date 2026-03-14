@@ -409,9 +409,9 @@ def get_save_dir(args: SimpleNamespace, name: str | None = None) -> Path:
     else:
         from ultralytics.utils.files import increment_path
 
-        project = args.project or ""
-        if not Path(project).is_absolute():
-            project = (ROOT.parent / "tests/tmp/runs" if TESTS_RUNNING else RUNS_DIR) / args.task / project
+        project = Path(args.project) if args.project else (
+            (ROOT.parent / "tests/tmp/runs" if TESTS_RUNNING else RUNS_DIR) / args.task
+        )
         name = name or args.name or f"{args.mode}"
         save_dir = increment_path(Path(project) / name, exist_ok=args.exist_ok if RANK in {-1, 0} else True)
 

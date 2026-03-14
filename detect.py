@@ -6,7 +6,7 @@ import sys
 
 def args_parser():
     parser = argparse.ArgumentParser(description='Detect objects with CollabOD models')
-    parser.add_argument('--model_yaml', type=str, help='Path to the model YAML file')
+    parser.add_argument('--model_path', type=str, help='Path to the model file')
     parser.add_argument('--source', type=str, help='Path to the source images for detection')
     parser.add_argument('--imgsz', type=int, default=640, help='Image size for detection')
     parser.add_argument('--conf', type=float, default=0.25, help='Confidence threshold for detection')
@@ -20,7 +20,7 @@ def args_parser():
 if __name__ == '__main__':
     args = args_parser()
 
-    model = YOLO(args.model_yaml)
+    model = YOLO(args.model_path)
     model.predict(
         source=args.source,
         imgsz=args.imgsz,

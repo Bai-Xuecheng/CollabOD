@@ -448,10 +448,17 @@ class v8DetectionLoss:
         )  # loss(box, cls, dfl)
 
     def parse_output(
-        self, preds: dict[str, torch.Tensor] | tuple[torch.Tensor, dict[str, torch.Tensor]]
-    ) -> torch.Tensor:
-        """Parse model predictions to extract features."""
-        return preds[1] if isinstance(preds, tuple) else preds
+        self, preds: dict[str, torch.Tensor] | tuple[torch.Tensor, dict[str, torch.Tensor]] | list[torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        """Normalize model predictions into the dict format expected by the loss."""
+        preds = preds[1] if isinstance(preds, tuple) else preds
+        if isinstance(preds, dict):
+            return preds
+        if isinstance(preds, list):
+            boxes_scores = torch.cat([xi.view(xi.shape[0], self.no, -1) for xi in preds], 2)
+            boxes, scores = boxes_scores.split((self.reg_max * 4, self.nc), 1)
+            return {"boxes": boxes, "scores": scores, "feats": preds}
+        raise TypeError(f"Unsupported prediction type for loss parsing: {type(preds).__name__}")
 
     def __call__(
         self,
