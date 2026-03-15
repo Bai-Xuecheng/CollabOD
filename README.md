@@ -32,7 +32,10 @@
 </div>
 
 <div align='center'>
-    <a href='https://arxiv.org/abs/2603.05905'><img src='https://img.shields.io/badge/CollabOD-Paper-red'></a>
+  <a href='https://arxiv.org/abs/2603.05905'><img src='https://img.shields.io/badge/CollabOD-Paper-red'></a>
+  <a href="https://huggingface.co/papers/2603.05905">
+  <img src="https://img.shields.io/badge/Hugging%20Face-Paper-yellow?logo=huggingface" alt="Hugging Face Paper">
+</a>
   <img src="https://img.shields.io/github/stars/Bai-Xuecheng/CollabOD?style=flat&logo=github" alt="GitHub stars"/>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue?style=flat&logo=python&logoColor=white" alt="Python version"/>
   <img src="https://img.shields.io/badge/PyTorch-2.0.0%2B-EE4C2C?style=flat&logo=pytorch&logoColor=white" alt="PyTorch version"/>
